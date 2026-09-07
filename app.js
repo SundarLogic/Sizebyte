@@ -40,21 +40,25 @@ app.use(cors());
 app.use(productRoutes);
 app.use(authRoutes);
 
-app.use(errorHandler);
-
 app.get("/", (req, res) => {
   res.json({
     message: "Welcome to SizeByte",
   });
 });
 
+app.use(errorHandler);
+
 sequelize
   .sync({ alter: false })
   .then(() => {
-    app.listen(3000, () => {
-      console.log("Server is Running");
-    });
+    if (process.env.NODE_ENV !== "production") {
+      app.listen(3000, () => {
+        console.log("Server is Running");
+      });
+    }
   })
   .catch((err) => {
     console.log(err);
   });
+
+module.exports = app;
