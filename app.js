@@ -37,6 +37,17 @@ app.use(express.json());
 app.use(helmet());
 app.use(cors());
 
+const dbReady = sequelize.sync({ alter: false }); //For deployemnt
+
+app.use(async (req, res, next) => {
+  try {
+    await dbReady;
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.use(productRoutes);
 app.use(authRoutes);
 
@@ -48,7 +59,7 @@ app.get("/", (req, res) => {
 
 app.use(errorHandler);
 
-sequelize
+/*sequelize
   .sync({ alter: false })
   .then(() => {
     if (process.env.NODE_ENV !== "production") {
@@ -60,5 +71,20 @@ sequelize
   .catch((err) => {
     console.log(err);
   });
+
+module.exports = app;*/
+
+if (process.env.NODE_ENV !== "production") {
+  //changed for deployment to vercel
+  dbReady
+    .then(() => {
+      app.listen(3000, () => {
+        console.log("Server is Running");
+      });
+    })
+    .catch((err) => {
+      console.log(err);
+    });
+}
 
 module.exports = app;
