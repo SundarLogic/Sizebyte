@@ -61,7 +61,7 @@ exports.adminLogin = (req, res, next) => {
             adminId: admin.id,
             email: admin.email,
           },
-          "my-secret-key",
+          process.env.JWT_SECRET,
           {
             expiresIn: "1h",
           },
@@ -132,7 +132,7 @@ exports.userLogin = (req, res, next) => {
             userId: user.id,
             email: user.email,
           },
-          "my-secret-key",
+          process.env.JWT_SECRET,
           {
             expiresIn: "1h",
           },

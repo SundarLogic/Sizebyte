@@ -1,4 +1,4 @@
-const multer = require("multer");
+/*const multer = require("multer");
 
 const filestorage = multer.diskStorage({
   //destination of the file
@@ -14,7 +14,35 @@ const upload = multer({
   storage: filestorage,
 
   fileFilter: (req, file, cb) => {
-    if (file.mimetype === "image/jpeg" || file.mimetype === "image/png") {
+    if (
+      file.mimetype === "image/jpeg" ||
+      file.mimetype === "image/png" ||
+      file.mimetype === "application/octet-stream"
+    ) {
+      cb(null, true);
+    } else {
+      cb(null, false);
+    }
+  },
+});
+
+module.exports = upload;
+*/
+
+//Storing in cloudinary
+const multer = require("multer");
+
+const storage = multer.memoryStorage();
+
+const upload = multer({
+  storage: storage,
+
+  fileFilter: (req, file, cb) => {
+    if (
+      file.mimetype === "image/jpeg" ||
+      file.mimetype === "image/png" ||
+      file.mimetype === "application/octet-stream"
+    ) {
       cb(null, true);
     } else {
       cb(null, false);

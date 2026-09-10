@@ -2,6 +2,8 @@ const Product = require("../Models/Product");
 
 const { Op } = require("sequelize");
 
+const cloudinary = require("../config/cloudinary");
+
 exports.getProducts = async (req, res, next) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
@@ -82,17 +84,35 @@ exports.addProduct = (req, res, next) => {
   const description = req.body.description;
   const price = req.body.price;
   const quantity = req.body.quantity;
-  const imageUrl = req.file.filename;
 
-  Product.create({
-    name: name,
-    category: category,
-    description: description,
-    price: price,
-    quantity: quantity,
-    imageUrl: imageUrl,
-    adminId: req.adminId,
+  new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: "sizebyte/products",
+      },
+      (error, result) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve(result);
+        }
+      },
+    );
+
+    stream.end(req.file.buffer);
   })
+    .then((result) => {
+      const imageUrl = result.secure_url;
+      return Product.create({
+        name: name,
+        category: category,
+        description: description,
+        price: price,
+        quantity: quantity,
+        imageUrl: imageUrl,
+        adminId: req.adminId,
+      });
+    })
     .then((product) => {
       res.status(201).json({
         message: "Product is added",
@@ -120,7 +140,27 @@ exports.updateProduct = (req, res, next) => {
       product.quantity = quantity;
 
       if (req.file) {
-        product.imageUrl = req.file.filename;
+        //product.imageUrl = req.file.filename;
+        return new Promise((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            {
+              folder: "sizebyte/products",
+            },
+            (error, result) => {
+              if (error) {
+                reject(error);
+              } else {
+                resolve(result);
+              }
+            },
+          );
+
+          stream.end(req.file.buffer);
+        }).then((result) => {
+          product.imageUrl = result.secure_url;
+
+          return product.save();
+        });
       }
 
       return product.save();
