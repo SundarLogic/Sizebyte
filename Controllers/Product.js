@@ -190,3 +190,28 @@ exports.deleteProduct = (req, res, next) => {
       next(err);
     });
 };
+
+exports.getAdminProducts = async (req, res, next) => {
+  try {
+    const products = await Product.findAll({
+      where: {
+        adminId: req.adminId,
+      },
+      attributes: [
+        "id",
+        "name",
+        "category",
+        "description",
+        "price",
+        "quantity",
+        "imageUrl",
+      ],
+    });
+
+    res.status(200).json({
+      products: products,
+    });
+  } catch (err) {
+    next(err);
+  }
+};

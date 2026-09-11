@@ -30,6 +30,8 @@ router.post(
 
 router.get("/products", productController.getProducts);
 
+router.get("/admin/products", isAdminAuth, productController.getAdminProducts);
+
 router.put(
   "/products/:id",
   isAdminAuth,
