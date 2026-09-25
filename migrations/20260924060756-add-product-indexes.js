@@ -65,13 +65,6 @@ module.exports = {
         name: "idx_products_category_createdAt",
       });
     }
-
-    if (!indexNames.includes("ft_products_name")) {
-      await queryInterface.addIndex("products", ["name"], {
-        name: "ft_products_name",
-        type: "FULLTEXT",
-      });
-    }
   },
 
   async down(queryInterface, Sequelize) {
@@ -87,7 +80,5 @@ module.exports = {
       "products",
       "idx_products_category_createdAt",
     );
-
-    await queryInterface.removeIndex("products", "ft_products_name");
   },
 };
