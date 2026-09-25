@@ -31,6 +31,10 @@ const Product = sequelize.define(
       type: Sequelize.STRING,
       allowNull: false,
     },
+    imagePublicId: {
+      type: Sequelize.STRING,
+      allowNull: true,
+    },
     quantity: {
       type: Sequelize.INTEGER,
       allowNull: false,

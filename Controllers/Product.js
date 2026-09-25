@@ -1,6 +1,6 @@
 const Product = require("../Models/Product");
 
-const { Op } = require("sequelize");
+const { Op, Sequelize } = require("sequelize");
 
 const cloudinary = require("../config/cloudinary");
 
@@ -25,9 +25,9 @@ exports.getProducts = async (req, res, next) => {
   const where = {};
 
   if (search) {
-    where.name = {
-      [Op.like]: `%${search}%`,
-    };
+    where[Sequelize.Op.and] = Sequelize.literal(
+      `MATCH(name) AGAINST ('${search}')`,
+    );
   }
 
   if (category) {
@@ -103,6 +103,8 @@ exports.addProduct = (req, res, next) => {
   })
     .then((result) => {
       const imageUrl = result.secure_url;
+      const imagePublicId = result.public_id;
+
       return Product.create({
         name: name,
         category: category,
@@ -110,6 +112,7 @@ exports.addProduct = (req, res, next) => {
         price: price,
         quantity: quantity,
         imageUrl: imageUrl,
+        imagePublicId: imagePublicId,
         adminId: req.adminId,
       });
     })
@@ -141,26 +144,34 @@ exports.updateProduct = (req, res, next) => {
 
       if (req.file) {
         //product.imageUrl = req.file.filename;
-        return new Promise((resolve, reject) => {
-          const stream = cloudinary.uploader.upload_stream(
-            {
-              folder: "sizebyte/products",
-            },
-            (error, result) => {
-              if (error) {
-                reject(error);
-              } else {
-                resolve(result);
-              }
-            },
-          );
+        return cloudinary.uploader
+          .destroy(product.imagePublicId, {
+            resource_type: "image",
+            invalidate: true,
+          })
+          .then(() => {
+            return new Promise((resolve, reject) => {
+              const stream = cloudinary.uploader.upload_stream(
+                {
+                  folder: "sizebyte/products",
+                },
+                (error, result) => {
+                  if (error) {
+                    reject(error);
+                  } else {
+                    resolve(result);
+                  }
+                },
+              );
 
-          stream.end(req.file.buffer);
-        }).then((result) => {
-          product.imageUrl = result.secure_url;
+              stream.end(req.file.buffer);
+            });
+          })
+          .then((result) => {
+            product.imageUrl = result.secure_url;
 
-          return product.save();
-        });
+            return product.save();
+          });
       }
 
       return product.save();
@@ -178,6 +189,15 @@ exports.updateProduct = (req, res, next) => {
 
 exports.deleteProduct = (req, res, next) => {
   Product.findByPk(req.params.id)
+    .then((product) => {
+      return cloudinary.uploader.destroy(product.imagePublicId, {
+        resource_type: "image",
+        invalidate: true,
+      });
+    })
+    .then(() => {
+      return Product.findByPk(req.params.id);
+    })
     .then((product) => {
       return product.destroy();
     })

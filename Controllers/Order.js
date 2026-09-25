@@ -4,16 +4,25 @@ const CartItem = require("../Models/CartItem");
 const Order = require("../Models/Order");
 const OrderItem = require("../Models/OrderItem");
 
+const sequelize = require("../config/database.js");
+
 exports.checkout = async (req, res, next) => {
   const userId = req.userId;
 
+  let transaction;
+
   try {
+    transaction = await sequelize.transaction();
+
     const cart = await Cart.findOne({
       where: {
         userId: userId,
       },
+      transaction: transaction,
     });
     if (!cart) {
+      await transaction.rollback();
+
       return res.status(404).json({
         message: "Cart is not avilable",
       });
@@ -22,8 +31,11 @@ exports.checkout = async (req, res, next) => {
       where: {
         cartId: cart.id,
       },
+      transaction: transaction,
     });
     if (cartItems.length === 0) {
+      await transaction.rollback();
+
       return res.status(400).json({
         message: "Cart is empty",
       });
@@ -34,14 +46,21 @@ exports.checkout = async (req, res, next) => {
 
     for (const cartItem of cartItems) {
       //Finding each product total price module
-      const product = await Product.findByPk(cartItem.productId);
+      const product = await Product.findByPk(cartItem.productId, {
+        transaction: transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
       if (!product) {
+        await transaction.rollback();
+
         return res.status(404).json({
           message: `Product with ID ${cartItem.productId} not found`,
         });
       }
 
       if (cartItem.quantity > product.quantity) {
+        await transaction.rollback();
+
         return res.status(400).json({
           message: `Not enough stock available for ${product.name}`,
         });
@@ -51,34 +70,51 @@ exports.checkout = async (req, res, next) => {
       totalAmount += itemTotal;
 
       orderItems.push({
+        product: product,
         productId: product.id,
         quantity: cartItem.quantity,
         price: product.price,
       });
     }
 
-    const order = await Order.create({
-      userId: userId,
-      totalAmount: totalAmount,
-    });
+    const order = await Order.create(
+      {
+        userId: userId,
+        totalAmount: totalAmount,
+      },
+      {
+        transaction: transaction,
+      },
+    );
 
     for (const item of orderItems) {
-      await OrderItem.create({
-        orderId: order.id,
-        productId: item.productId,
-        quantity: item.quantity,
-        price: item.price,
-      });
-      const product = await Product.findByPk(item.productId);
+      await OrderItem.create(
+        {
+          orderId: order.id,
+          productId: item.productId,
+          quantity: item.quantity,
+          price: item.price,
+        },
+        {
+          transaction: transaction,
+        },
+      );
+      const product = item.product;
 
       product.quantity = product.quantity - item.quantity;
 
-      await product.save();
+      await product.save({
+        transaction: transaction,
+      });
     }
 
     for (const cartItem of cartItems) {
-      await cartItem.destroy();
+      await cartItem.destroy({
+        transaction: transaction,
+      });
     }
+
+    await transaction.commit();
 
     return res.status(200).json({
       message: "Checkout Successful",
@@ -86,6 +122,9 @@ exports.checkout = async (req, res, next) => {
       totalAmount: order.totalAmount,
     });
   } catch (err) {
+    if (transaction && !transaction.finished) {
+      await transaction.rollback();
+    }
     next(err);
   }
 };
