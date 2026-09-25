@@ -1,4 +1,3 @@
-/*
 const { Sequelize } = require("sequelize");
 const mysql2 = require("mysql2");
 
@@ -24,8 +23,7 @@ const sequelize = new Sequelize(
 
 module.exports = sequelize;
 
-*/
-
+/*
 //FOR LOCAL DB
 
 const Sequelize = require("sequelize");
@@ -41,3 +39,4 @@ const sequelize = new Sequelize(
 );
 
 module.exports = sequelize;
+*/
