@@ -25,9 +25,9 @@ exports.getProducts = async (req, res, next) => {
   const where = {};
 
   if (search) {
-    where[Sequelize.Op.and] = Sequelize.literal(
-      `MATCH(name) AGAINST ('${search}')`,
-    );
+    where.name = {
+      [Op.like]: `%${search}%`,
+    };
   }
 
   if (category) {
