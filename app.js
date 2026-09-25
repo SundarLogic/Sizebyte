@@ -37,8 +37,8 @@ app.use(express.json());
 app.use(helmet());
 app.use(cors());
 
-const dbReady = sequelize.sync({ alter: false }); //For deployemnt
-
+//const dbReady = sequelize.sync({ alter: false }); //For deployemnt
+/*
 app.use(async (req, res, next) => {
   try {
     await dbReady;
@@ -47,7 +47,7 @@ app.use(async (req, res, next) => {
     next(err);
   }
 });
-
+*/
 app.use(productRoutes);
 app.use(authRoutes);
 
@@ -71,7 +71,7 @@ sequelize
   });
 
 module.exports = app;
-*/
+
 
 //changed for deployment to vercel
 
@@ -86,5 +86,11 @@ if (process.env.NODE_ENV !== "production") {
       console.log(err);
     });
 }
+*/
 
+if (process.env.NODE_ENV !== "production") {
+  app.listen(3000, () => {
+    console.log("Server is Running");
+  });
+}
 module.exports = app;
