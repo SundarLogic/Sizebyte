@@ -10,7 +10,6 @@ exports.adminSignup = (req, res, next) => {
   const name = req.body.name;
   const email = req.body.email;
   const password = req.body.password;
-  const address = req.body.address;
 
   bcrypt
     .hash(password, 12)
@@ -19,7 +18,6 @@ exports.adminSignup = (req, res, next) => {
         name: name,
         email: email,
         password: hashedPassword,
-        address: address,
       });
     })
     .then((admin) => {
@@ -82,7 +80,6 @@ exports.userSignup = (req, res, next) => {
   const name = req.body.name;
   const email = req.body.email;
   const password = req.body.password;
-  const address = req.body.address;
 
   bcrypt
     .hash(password, 12)
@@ -91,7 +88,6 @@ exports.userSignup = (req, res, next) => {
         name: name,
         email: email,
         password: hashedpassword,
-        address: address,
       });
     })
     .then((user) => {

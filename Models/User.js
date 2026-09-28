@@ -24,10 +24,6 @@ const User = sequelize.define(
       type: Sequelize.STRING,
       allowNull: false,
     },
-    address: {
-      type: Sequelize.STRING,
-      allowNull: false,
-    },
   },
   {
     paranoid: true,

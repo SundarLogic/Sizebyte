@@ -24,10 +24,6 @@ const Admin = sequelize.define(
       type: Sequelize.STRING,
       allowNull: false,
     },
-    address: {
-      type: Sequelize.STRING,
-      allowNull: false,
-    },
   },
   {
     paranoid: true,

@@ -2,7 +2,7 @@ const { body } = require("express-validator");
 const Admin = require("../Models/Admin");
 
 const signupValidation = [
-  body("name").trim().notEmpty().withMessage("Nameis required"),
+  body("name").trim().notEmpty().withMessage("Name is required"),
 
   body("email")
     .isEmail()
@@ -18,8 +18,6 @@ const signupValidation = [
   body("password")
     .isLength({ min: 6 })
     .withMessage("Password must be at least 6 characters"),
-
-  body("address").trim().notEmpty().withMessage("Address is required"),
 ];
 
 module.exports = signupValidation;
