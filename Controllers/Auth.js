@@ -6,13 +6,29 @@ const User = require("../Models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
+//The unique index on email rejects duplicates, so reply like validate.js does
+const duplicateEmailResponse = (res, email, msg) => {
+  return res.status(422).json({
+    message: "validation failed",
+    errors: [
+      {
+        type: "field",
+        value: email,
+        msg: msg,
+        path: "email",
+        location: "body",
+      },
+    ],
+  });
+};
+
 exports.adminSignup = (req, res, next) => {
   const name = req.body.name;
   const email = req.body.email;
   const password = req.body.password;
 
   bcrypt
-    .hash(password, 12)
+    .hash(password, 10)
     .then((hashedPassword) => {
       return Admin.create({
         name: name,
@@ -27,6 +43,9 @@ exports.adminSignup = (req, res, next) => {
       });
     })
     .catch((err) => {
+      if (err.name === "SequelizeUniqueConstraintError") {
+        return duplicateEmailResponse(res, email, "Email already registered");
+      }
       next(err);
     });
 };
@@ -82,7 +101,7 @@ exports.userSignup = (req, res, next) => {
   const password = req.body.password;
 
   bcrypt
-    .hash(password, 12)
+    .hash(password, 10)
     .then((hashedpassword) => {
       return User.create({
         name: name,
@@ -96,6 +115,13 @@ exports.userSignup = (req, res, next) => {
       });
     })
     .catch((err) => {
+      if (err.name === "SequelizeUniqueConstraintError") {
+        return duplicateEmailResponse(
+          res,
+          email,
+          "Email is already registered",
+        );
+      }
       next(err);
     });
 };
@@ -110,7 +136,6 @@ exports.userLogin = (req, res, next) => {
     },
   })
     .then((user) => {
-      console.log("User Found:", user);
       if (!user) {
         return res.status(401).json({
           message: "Invalid Username",

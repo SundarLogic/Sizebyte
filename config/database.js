@@ -10,6 +10,12 @@ const sequelize = new Sequelize(
     port: process.env.DB_PORT,
     dialect: "mysql",
     dialectModule: mysql2,
+    logging: process.env.NODE_ENV === "production" ? false : console.log,
+    pool: {
+      max: 2,
+      min: 0,
+      idle: 10000,
+    },
 
     ...(process.env.NODE_ENV === "production" && {
       dialectOptions: {
