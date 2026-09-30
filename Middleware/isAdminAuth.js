@@ -20,7 +20,7 @@ module.exports = (req, res, next) => {
       message: "Invalid or Expired token",
     });
   }
-  if (!decodedtoken) {
+  if (!decodedtoken || !decodedtoken.adminId) {
     return res.status(401).json({
       message: "Not Authenticated",
     });

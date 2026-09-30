@@ -18,6 +18,8 @@ const Admin = require("./Models/Admin");
 const User = require("./Models/User");
 const Cart = require("./Models/Cart");
 const CartItem = require("./Models/CartItem");
+const Order = require("./Models/Order");
+const OrderItem = require("./Models/OrderItem");
 
 const app = express();
 
@@ -33,21 +35,20 @@ CartItem.belongsTo(Cart);
 CartItem.belongsTo(Product);
 Product.hasMany(CartItem);
 
+Order.hasMany(OrderItem, { as: "orderItems", foreignKey: "orderId" });
+OrderItem.belongsTo(Order, { foreignKey: "orderId" });
+
+OrderItem.belongsTo(Product, { foreignKey: "productId" });
+
 app.use(express.json());
 app.use(helmet());
-app.use(cors());
+//Set CORS_ORIGIN to the frontend URL (comma separated for several)
+app.use(
+  cors({
+    origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(",") : "*",
+  }),
+);
 
-//const dbReady = sequelize.sync({ alter: false }); //For deployemnt
-/*
-app.use(async (req, res, next) => {
-  try {
-    await dbReady;
-    next();
-  } catch (err) {
-    next(err);
-  }
-});
-*/
 app.use(productRoutes);
 app.use(authRoutes);
 
@@ -58,35 +59,6 @@ app.get("/", (req, res) => {
 });
 
 app.use(errorHandler);
-/*
-sequelize
-  .sync({ alter: false })
-  .then(() => {
-    app.listen(3000, () => {
-      console.log("Server is Running");
-    });
-  })
-  .catch((err) => {
-    console.log(err);
-  });
-
-module.exports = app;
-
-
-//changed for deployment to vercel
-
-if (process.env.NODE_ENV !== "production") {
-  dbReady
-    .then(() => {
-      app.listen(3000, () => {
-        console.log("Server is Running");
-      });
-    })
-    .catch((err) => {
-      console.log(err);
-    });
-}
-*/
 
 if (process.env.NODE_ENV !== "production") {
   app.listen(3000, () => {

@@ -13,8 +13,8 @@ const productValidation = [
     .withMessage("Price must be a valid positive number"),
 
   body("quantity")
-    .isInt({ min: 1 })
-    .withMessage("Quantity should be a positive whole number"),
+    .isInt({ min: 0 })
+    .withMessage("Quantity should be a whole number of 0 or more"),
 ];
 
 module.exports = productValidation;
