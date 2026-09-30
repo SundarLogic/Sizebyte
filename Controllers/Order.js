@@ -138,32 +138,25 @@ exports.getOrders = async (req, res, next) => {
         userId: userId,
       },
       attributes: ["id", "totalAmount", "status"],
-    });
-    if (orders.length === 0) {
-      return res.status(404).json({
-        message: "No orders found for this user",
-      });
-    }
-
-    for (const order of orders) {
-      const orderItems = await OrderItem.findAll({
-        where: {
-          orderId: order.id,
+      include: [
+        {
+          model: OrderItem,
+          as: "orderItems",
+          attributes: ["id", "productId", "quantity", "price"],
+          include: [
+            {
+              model: Product,
+              attributes: ["id", "name", "imageUrl"],
+              paranoid: false, //keep showing products the seller has since deleted
+            },
+          ],
         },
-        attributes: ["id", "productId", "quantity", "price"],
-      });
-      order.dataValues.orderItems = orderItems;
-
-      for (const item of orderItems) {
-        const product = await Product.findByPk(item.productId, {
-          attributes: ["id", "name", "imageUrl"],
-        });
-        item.dataValues.product = product;
-      }
-    }
+      ],
+      order: [["id", "DESC"]],
+    });
 
     return res.status(200).json({
-      message: "Orders found",
+      message: orders.length ? "Orders found" : "No orders found for this user",
       orders: orders,
     });
   } catch (err) {
@@ -175,57 +168,43 @@ exports.getAdminOrders = async (req, res, next) => {
   const adminId = req.adminId;
 
   try {
-    const products = await Product.findAll({
-      where: {
-        adminId: adminId,
-      },
-      attributes: ["id", "name", "price", "imageUrl"],
-    });
-    if (products.length === 0) {
-      return res.status(404).json({
-        message: "No products found for this admin",
-      });
-    }
-
-    const adminOrders = [];
-
-    for (const product of products) {
-      const orderItems = await OrderItem.findAll({
-        where: {
-          productId: product.id,
-        },
-        attributes: ["id", "orderId", "productId", "quantity", "price"],
-      });
-      for (const orderItem of orderItems) {
-        const order = await Order.findByPk(orderItem.orderId, {
-          attributes: ["id", "userId", "totalAmount", "status"],
-        });
-        if (!order) {
-          continue;
-        }
-        adminOrders.push({
-          orderId: order.id,
-          userId: order.userId,
-          totalAmount: order.totalAmount,
-          status: order.status,
-          product: {
-            id: product.id,
-            name: product.name,
-            imageUrl: product.imageUrl,
+    const orderItems = await OrderItem.findAll({
+      attributes: ["id", "orderId", "productId", "quantity", "price"],
+      include: [
+        {
+          model: Product,
+          where: {
+            adminId: adminId,
           },
-          quantity: orderItem.quantity,
-          price: orderItem.price,
-        });
-      }
-    }
-    if (adminOrders.length === 0) {
-      return res.status(404).json({
-        message: "No orders found for this admin's products",
-      });
-    }
+          attributes: ["id", "name", "imageUrl"],
+          paranoid: false,
+        },
+        {
+          model: Order,
+          attributes: ["id", "userId", "totalAmount", "status"],
+        },
+      ],
+      order: [["orderId", "DESC"]],
+    });
+
+    const adminOrders = orderItems.map((orderItem) => ({
+      orderId: orderItem.order.id,
+      userId: orderItem.order.userId,
+      totalAmount: orderItem.order.totalAmount,
+      status: orderItem.order.status,
+      product: {
+        id: orderItem.product.id,
+        name: orderItem.product.name,
+        imageUrl: orderItem.product.imageUrl,
+      },
+      quantity: orderItem.quantity,
+      price: orderItem.price,
+    }));
 
     return res.status(200).json({
-      message: "Orders found for this admin's products",
+      message: adminOrders.length
+        ? "Orders found for this admin's products"
+        : "No orders found for this admin's products",
       orders: adminOrders,
     });
   } catch (err) {
@@ -238,6 +217,8 @@ exports.updateOrderStatus = async (req, res, next) => {
   const orderId = req.params.id;
   const { status } = req.body;
 
+  let transaction;
+
   try {
     const allowedStatuses = ["ORDERED", "SHIPPED", "DELIVERED", "CANCELLED"];
     if (!allowedStatuses.includes(status)) {
@@ -246,49 +227,82 @@ exports.updateOrderStatus = async (req, res, next) => {
       });
     }
 
-    const products = await Product.findAll({
+    //The admin may update the order only if it contains one of their products
+    const adminOrderItem = await OrderItem.findOne({
       where: {
-        adminId: adminId,
+        orderId: orderId,
       },
-    });
-
-    if (products.length === 0) {
-      return res.status(404).json({
-        message: "No products found for this admin",
-      });
-    }
-
-    let authorized = false;
-
-    for (const product of products) {
-      const orderitem = await OrderItem.findAll({
-        where: {
-          orderId: orderId,
-          productId: product.id,
+      include: [
+        {
+          model: Product,
+          where: {
+            adminId: adminId,
+          },
+          attributes: [],
+          paranoid: false,
         },
-      });
-
-      if (orderitem.length > 0) {
-        authorized = true;
-        break;
-      }
-    }
-    if (!authorized) {
+      ],
+    });
+    if (!adminOrderItem) {
       return res.status(403).json({
         message: "You are not authorized to update this order",
       });
     }
 
-    const order = await Order.findByPk(orderId);
+    transaction = await sequelize.transaction();
+
+    const order = await Order.findByPk(orderId, {
+      transaction: transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
 
     if (!order) {
+      await transaction.rollback();
+
       return res.status(404).json({
         message: "Order not found",
       });
     }
 
+    //Stock is returned on cancel, so a cancelled order cannot be reopened
+    if (order.status === "CANCELLED") {
+      await transaction.rollback();
+
+      return res.status(400).json({
+        message: "Cancelled orders cannot be updated",
+      });
+    }
+
+    if (status === "CANCELLED") {
+      const orderItems = await OrderItem.findAll({
+        where: {
+          orderId: order.id,
+        },
+        transaction: transaction,
+      });
+
+      for (const item of orderItems) {
+        const product = await Product.findByPk(item.productId, {
+          transaction: transaction,
+          lock: transaction.LOCK.UPDATE,
+          paranoid: false,
+        });
+        if (product) {
+          product.quantity = product.quantity + item.quantity;
+
+          await product.save({
+            transaction: transaction,
+          });
+        }
+      }
+    }
+
     order.status = status;
-    await order.save();
+    await order.save({
+      transaction: transaction,
+    });
+
+    await transaction.commit();
 
     return res.status(200).json({
       message: "Order status updated successfully",
@@ -296,6 +310,9 @@ exports.updateOrderStatus = async (req, res, next) => {
       status: order.status,
     });
   } catch (err) {
+    if (transaction && !transaction.finished) {
+      await transaction.rollback();
+    }
     next(err);
   }
 };

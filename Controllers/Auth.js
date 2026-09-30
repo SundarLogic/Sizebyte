@@ -39,7 +39,11 @@ exports.adminSignup = (req, res, next) => {
     .then((admin) => {
       res.status(201).json({
         message: "Signup Successful",
-        admin: admin,
+        admin: {
+          id: admin.id,
+          name: admin.name,
+          email: admin.email,
+        },
       });
     })
     .catch((err) => {
@@ -62,14 +66,14 @@ exports.adminLogin = (req, res, next) => {
     .then((admin) => {
       if (!admin) {
         return res.status(401).json({
-          message: "Email is invalid",
+          message: "Invalid email or password",
         });
       }
 
       return bcrypt.compare(password, admin.password).then((doMatch) => {
         if (!doMatch) {
           return res.status(401).json({
-            message: "Password is incorrect",
+            message: "Invalid email or password",
           });
         }
 
@@ -138,13 +142,13 @@ exports.userLogin = (req, res, next) => {
     .then((user) => {
       if (!user) {
         return res.status(401).json({
-          message: "Invalid Username",
+          message: "Invalid email or password",
         });
       }
       return bcrypt.compare(password, user.password).then((doMatch) => {
         if (!doMatch) {
           return res.status(401).json({
-            message: "Wrong Password",
+            message: "Invalid email or password",
           });
         }
 

@@ -1,34 +1,3 @@
-/*const multer = require("multer");
-
-const filestorage = multer.diskStorage({
-  //destination of the file
-  destination: (req, file, cb) => {
-    cb(null, "public/images");
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + "-" + file.originalname); //how the file should be stored
-  },
-});
-
-const upload = multer({
-  storage: filestorage,
-
-  fileFilter: (req, file, cb) => {
-    if (
-      file.mimetype === "image/jpeg" ||
-      file.mimetype === "image/png" ||
-      file.mimetype === "application/octet-stream"
-    ) {
-      cb(null, true);
-    } else {
-      cb(null, false);
-    }
-  },
-});
-
-module.exports = upload;
-*/
-
 //Storing in cloudinary
 const multer = require("multer");
 
@@ -37,15 +6,17 @@ const storage = multer.memoryStorage();
 const upload = multer({
   storage: storage,
 
+  limits: {
+    fileSize: 4 * 1024 * 1024, //Vercel rejects request bodies above 4.5MB
+  },
+
   fileFilter: (req, file, cb) => {
-    if (
-      file.mimetype === "image/jpeg" ||
-      file.mimetype === "image/png" ||
-      file.mimetype === "application/octet-stream"
-    ) {
+    if (file.mimetype === "image/jpeg" || file.mimetype === "image/png") {
       cb(null, true);
     } else {
-      cb(null, false);
+      const error = new Error("Only JPEG and PNG images are allowed");
+      error.status = 422;
+      cb(error);
     }
   },
 });

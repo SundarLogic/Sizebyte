@@ -1,12 +1,32 @@
 const Product = require("../Models/Product");
+const CartItem = require("../Models/CartItem");
 
 const { Op, Sequelize } = require("sequelize");
 
 const cloudinary = require("../config/cloudinary");
 
+const uploadImage = (buffer) => {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: "sizebyte/products",
+      },
+      (error, result) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve(result);
+        }
+      },
+    );
+
+    stream.end(buffer);
+  });
+};
+
 exports.getProducts = async (req, res, next) => {
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 10;
+  const page = Math.max(parseInt(req.query.page) || 1, 1);
+  const limit = Math.min(Math.max(parseInt(req.query.limit) || 10, 1), 50);
   const offset = (page - 1) * limit;
 
   const search = req.query.search || "";
@@ -85,22 +105,7 @@ exports.addProduct = (req, res, next) => {
   const price = req.body.price;
   const quantity = req.body.quantity;
 
-  new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      {
-        folder: "sizebyte/products",
-      },
-      (error, result) => {
-        if (error) {
-          reject(error);
-        } else {
-          resolve(result);
-        }
-      },
-    );
-
-    stream.end(req.file.buffer);
-  })
+  uploadImage(req.file.buffer)
     .then((result) => {
       const imageUrl = result.secure_url;
       const imagePublicId = result.public_id;
@@ -127,88 +132,66 @@ exports.addProduct = (req, res, next) => {
     });
 };
 
-exports.updateProduct = (req, res, next) => {
-  const name = req.body.name;
-  const category = req.body.category;
-  const description = req.body.description;
-  const price = req.body.price;
-  const quantity = req.body.quantity;
+exports.updateProduct = async (req, res, next) => {
+  try {
+    const product = await Product.findByPk(req.params.id);
 
-  Product.findByPk(req.params.id)
-    .then((product) => {
-      product.name = name;
-      product.category = category;
-      product.description = description;
-      product.price = price;
-      product.quantity = quantity;
+    product.name = req.body.name;
+    product.category = req.body.category;
+    product.description = req.body.description;
+    product.price = req.body.price;
+    product.quantity = req.body.quantity;
 
-      if (req.file) {
-        //product.imageUrl = req.file.filename;
-        return cloudinary.uploader
-          .destroy(product.imagePublicId, {
-            resource_type: "image",
-            invalidate: true,
-          })
-          .then(() => {
-            return new Promise((resolve, reject) => {
-              const stream = cloudinary.uploader.upload_stream(
-                {
-                  folder: "sizebyte/products",
-                },
-                (error, result) => {
-                  if (error) {
-                    reject(error);
-                  } else {
-                    resolve(result);
-                  }
-                },
-              );
+    let oldImagePublicId = null;
 
-              stream.end(req.file.buffer);
-            });
-          })
-          .then((result) => {
-            product.imageUrl = result.secure_url;
+    if (req.file) {
+      //Upload the new image first so a failed upload keeps the old one
+      const result = await uploadImage(req.file.buffer);
 
-            return product.save();
-          });
-      }
+      oldImagePublicId = product.imagePublicId;
+      product.imageUrl = result.secure_url;
+      product.imagePublicId = result.public_id;
+    }
 
-      return product.save();
-    })
-    .then((product) => {
-      res.status(200).json({
-        message: "Product updated",
-        product: product,
-      });
-    })
-    .catch((err) => {
-      next(err);
+    await product.save();
+
+    if (oldImagePublicId) {
+      cloudinary.uploader
+        .destroy(oldImagePublicId, {
+          resource_type: "image",
+          invalidate: true,
+        })
+        .catch((err) => console.log(err));
+    }
+
+    res.status(200).json({
+      message: "Product updated",
+      product: product,
     });
+  } catch (err) {
+    next(err);
+  }
 };
 
-exports.deleteProduct = (req, res, next) => {
-  Product.findByPk(req.params.id)
-    .then((product) => {
-      return cloudinary.uploader.destroy(product.imagePublicId, {
-        resource_type: "image",
-        invalidate: true,
-      });
-    })
-    .then(() => {
-      return Product.findByPk(req.params.id);
-    })
-    .then((product) => {
-      return product.destroy();
-    })
-    .then(() => {
-      res.status(200).json({
-        message: "Product Deleted",
-      });
-    })
-    .catch((err) => {
-      next(err);
+//Soft delete: the image is kept because past orders still show this product
+exports.deleteProduct = async (req, res, next) => {
+  try {
+    const product = await Product.findByPk(req.params.id);
+
+    await CartItem.destroy({
+      where: {
+        productId: product.id,
+      },
     });
+
+    await product.destroy();
+
+    res.status(200).json({
+      message: "Product Deleted",
+    });
+  } catch (err) {
+    next(err);
+  }
 };
 
 exports.getAdminProducts = async (req, res, next) => {

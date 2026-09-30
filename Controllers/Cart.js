@@ -3,9 +3,11 @@ const Product = require("../Models/Product");
 const Cart = require("../Models/Cart");
 const CartItem = require("../Models/CartItem");
 
+const isValidQuantity = (quantity) => Number.isInteger(quantity) && quantity > 0;
+
 exports.addCart = async (req, res, next) => {
   const productId = req.body.productId;
-  const quantity = req.body.quantity;
+  const quantity = Number(req.body.quantity);
   try {
     const product = await Product.findByPk(productId);
 
@@ -16,10 +18,10 @@ exports.addCart = async (req, res, next) => {
       });
     }
 
-    if (quantity <= 0) {
+    if (!isValidQuantity(quantity)) {
       //check the quantity entered is valid
       return res.status(400).json({
-        message: "Quantity must be greater than 0",
+        message: "Quantity must be a whole number greater than 0",
       });
     }
 
@@ -92,12 +94,13 @@ exports.getCart = async (req, res, next) => {
     });
 
     if (!cart) {
-      return res.status(404).json({
-        message: "Cart is not available",
+      return res.status(200).json({
+        cart: null,
+        cartItems: [],
       });
     }
 
-    const cartItems = await CartItem.findAll({
+    const allCartItems = await CartItem.findAll({
       where: {
         cartId: cart.id,
       },
@@ -110,9 +113,17 @@ exports.getCart = async (req, res, next) => {
       ],
     });
 
-    if (!cartItems.length === 0) {
-      return res.status(400).json({
-        message: "Cart is empty",
+    //Drop items whose product was deleted by the seller
+    const cartItems = allCartItems.filter((item) => item.product);
+    const removedItemIds = allCartItems
+      .filter((item) => !item.product)
+      .map((item) => item.id);
+
+    if (removedItemIds.length > 0) {
+      await CartItem.destroy({
+        where: {
+          id: removedItemIds,
+        },
       });
     }
 
@@ -128,7 +139,7 @@ exports.getCart = async (req, res, next) => {
 exports.updateCart = async (req, res, next) => {
   const userId = req.userId;
   const productId = req.body.productId;
-  const quantity = req.body.quantity;
+  const quantity = Number(req.body.quantity);
 
   try {
     const cart = await Cart.findOne({
@@ -163,9 +174,9 @@ exports.updateCart = async (req, res, next) => {
       });
     }
 
-    if (quantity <= 0) {
+    if (!isValidQuantity(quantity)) {
       return res.status(400).json({
-        message: "Quantity must be greater than 0",
+        message: "Quantity must be a whole number greater than 0",
       });
     }
 
